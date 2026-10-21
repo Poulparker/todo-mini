@@ -1,0 +1,24 @@
+# Системные файлы
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Редакторы и IDE
+.vscode/
+.idea/
+*.swp
+*~
+
+# Логи и временные файлы
+*.log
+*.tmp
+tmp/
+
+# Зависимости и сборка (на будущее)
+node_modules/
+dist/
+
+# Секреты и локальные настройки
+.env
+.env.*
+*.key
