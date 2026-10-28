@@ -1,6 +1,21 @@
 'use strict';
 
 const STORAGE_KEY = 'todo-mini.tasks';
+const FILTER_KEY = 'todo-mini.filter';
+
+// Какие задачи показывать при каждом фильтре
+const FILTERS = {
+  all: () => true,
+  active: task => !task.done,
+  done: task => task.done,
+};
+
+// Что писать, когда при выбранном фильтре список пуст
+const EMPTY_TEXT = {
+  all: 'Задач пока нет — добавьте первую.',
+  active: 'Активных задач нет — всё сделано!',
+  done: 'Выполненных задач пока нет.',
+};
 
 const form = document.getElementById('task-form');
 const input = document.getElementById('task-input');
@@ -9,8 +24,29 @@ const list = document.getElementById('task-list');
 const emptyState = document.getElementById('empty-state');
 const counter = document.getElementById('counter');
 const clearDoneBtn = document.getElementById('clear-done');
+const filterButtons = document.querySelectorAll('[data-filter]');
 
 let tasks = loadTasks();
+let filter = loadFilter();
+
+function loadFilter() {
+  try {
+    const saved = localStorage.getItem(FILTER_KEY);
+    return Object.hasOwn(FILTERS, saved) ? saved : 'all';
+  } catch {
+    return 'all';
+  }
+}
+
+function setFilter(name) {
+  filter = name;
+  try {
+    localStorage.setItem(FILTER_KEY, name);
+  } catch {
+    // Фильтр просто не запомнится — это не критично
+  }
+  render();
+}
 
 function loadTasks() {
   try {
@@ -57,8 +93,9 @@ function deleteTask(id) {
 
 function render() {
   list.innerHTML = '';
+  const visible = tasks.filter(FILTERS[filter]);
 
-  for (const task of tasks) {
+  for (const task of visible) {
     const li = document.createElement('li');
     li.className = 'task' + (task.done ? ' task--done' : '');
 
@@ -85,8 +122,22 @@ function render() {
 
   const done = tasks.filter(t => t.done).length;
   counter.textContent = `${done} из ${tasks.length} выполнено`;
-  emptyState.hidden = tasks.length > 0;
+  emptyState.textContent = tasks.length === 0 ? EMPTY_TEXT.all : EMPTY_TEXT[filter];
+  emptyState.hidden = visible.length > 0;
   clearDoneBtn.disabled = done === 0;
+
+  const counts = { all: tasks.length, active: tasks.length - done, done };
+  const labels = { all: 'Все', active: 'Активные', done: 'Выполненные' };
+  for (const button of filterButtons) {
+    const name = button.dataset.filter;
+    button.textContent = `${labels[name]} (${counts[name]})`;
+    button.classList.toggle('filters__button--active', name === filter);
+    button.setAttribute('aria-pressed', name === filter);
+  }
+}
+
+for (const button of filterButtons) {
+  button.addEventListener('click', () => setFilter(button.dataset.filter));
 }
 
 form.addEventListener('submit', event => {
@@ -98,6 +149,9 @@ form.addEventListener('submit', event => {
     return;
   }
   formError.hidden = true;
+  // Новая задача активная: на фильтре «Выполненные» она бы не появилась,
+  // и казалось бы, что добавление не сработало. Поэтому показываем все задачи.
+  if (filter === 'done') setFilter('all');
   addTask(text);
   input.value = '';
   input.focus();
