@@ -68,7 +68,26 @@ body {
 }
 .task-form__error { color: var(--danger); margin: 6px 0 0; font-size: .9rem; }
 
-.task-list { list-style: none; padding: 0; margin: 20px 0 0; }
+.filters { display: flex; gap: 6px; margin-top: 20px; flex-wrap: wrap; }
+.filters__button {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: .9rem;
+  cursor: pointer;
+}
+.filters__button:hover { color: var(--text); }
+.filters__button--active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+.filters__button--active:hover { color: #fff; }
+
+.task-list { list-style: none; padding: 0; margin: 12px 0 0; }
 .task {
   display: flex;
   align-items: center;

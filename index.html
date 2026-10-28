@@ -20,6 +20,12 @@
     </form>
     <p id="form-error" class="task-form__error" role="alert" hidden>Введите текст задачи</p>
 
+    <nav class="filters" aria-label="Фильтр задач">
+      <button class="filters__button" type="button" data-filter="all">Все</button>
+      <button class="filters__button" type="button" data-filter="active">Активные</button>
+      <button class="filters__button" type="button" data-filter="done">Выполненные</button>
+    </nav>
+
     <ul id="task-list" class="task-list"></ul>
     <p id="empty-state" class="empty-state">Задач пока нет — добавьте первую.</p>
 
