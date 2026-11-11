@@ -4,6 +4,7 @@
 // лежит в localStorage браузера одной записью под ключом todo-mini.v1.
 const TaskStore = (() => {
   const KEY = 'todo-mini.v1';
+  const BACKUP_KEY = 'todo-mini.v1.backup';
   // Ключи прошлой версии (практикумы 1–2): данные из них переносятся
   const OLD_TASKS_KEY = 'todo-mini.tasks';
   const OLD_FILTER_KEY = 'todo-mini.filter';
@@ -47,13 +48,38 @@ const TaskStore = (() => {
     return state;
   }
 
+  // Возвращает { state, problem }:
+  //   problem = null          — всё прочитано;
+  //   problem = 'corrupted'   — данные повреждены, их копия сохранена в BACKUP_KEY;
+  //   problem = 'unavailable' — localStorage недоступен (запрещён в браузере).
   function load() {
+    let raw;
     try {
-      const raw = localStorage.getItem(KEY);
-      if (raw !== null) return normalize(JSON.parse(raw));
-      return migrateOld() || emptyState();
+      raw = localStorage.getItem(KEY);
     } catch {
-      return emptyState();
+      return { state: emptyState(), problem: 'unavailable' };
+    }
+
+    try {
+      if (raw === null) return { state: migrateOld() || emptyState(), problem: null };
+      const data = JSON.parse(raw);
+      if (!data || typeof data !== 'object' || !Array.isArray(data.tasks)) {
+        throw new Error('Неверная структура данных');
+      }
+      return { state: normalize(data), problem: null };
+    } catch {
+      // Раньше повреждённые данные молча заменялись пустым списком и тут же
+      // затирались. Теперь сначала сохраняем их копию, чтобы ничего не потерять.
+      backup(raw ?? localStorage.getItem(OLD_TASKS_KEY));
+      return { state: emptyState(), problem: 'corrupted' };
+    }
+  }
+
+  function backup(raw) {
+    try {
+      if (raw !== null) localStorage.setItem(BACKUP_KEY, raw);
+    } catch {
+      // Копию сохранить не удалось — пользователь всё равно увидит сообщение
     }
   }
 
@@ -66,5 +92,5 @@ const TaskStore = (() => {
     }
   }
 
-  return { KEY, load, save };
+  return { KEY, BACKUP_KEY, load, save };
 })();

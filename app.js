@@ -14,7 +14,21 @@ const EMPTY_TEXT = {
   done: 'Выполненных задач пока нет.',
 };
 
+const MAX_LENGTH = 200;
+
+// Сообщения о проблемах с хранилищем
+const STORAGE_MESSAGES = {
+  corrupted: 'Сохранённые данные повреждены и не читаются, поэтому список начат заново. ' +
+    `Копия старых данных лежит в localStorage под ключом ${TaskStore.BACKUP_KEY}.`,
+  unavailable: 'Хранилище браузера недоступно (например, запрещены cookie и данные сайтов). ' +
+    'Задачи будут работать, но пропадут после закрытия вкладки.',
+  saveFailed: 'Не удалось сохранить изменения: хранилище браузера недоступно или переполнено. ' +
+    'Они пропадут после закрытия вкладки.',
+};
+
 const form = document.getElementById('task-form');
+const storageAlert = document.getElementById('storage-alert');
+const storageAlertText = document.getElementById('storage-alert-text');
 const input = document.getElementById('task-input');
 const formError = document.getElementById('form-error');
 const list = document.getElementById('task-list');
@@ -26,9 +40,10 @@ const filterButtons = document.querySelectorAll('[data-filter]');
 // Состояние восстанавливается из localStorage (см. storage.js)
 let tasks = [];
 let filter = 'all';
-const initialState = TaskStore.load();
-applyState(initialState);
-input.value = initialState.draft;
+const initial = TaskStore.load();
+applyState(initial.state);
+input.value = initial.state.draft;
+if (initial.problem) showStorageAlert(STORAGE_MESSAGES[initial.problem]);
 
 function applyState(state) {
   tasks = state.tasks;
@@ -37,7 +52,45 @@ function applyState(state) {
 
 // Сохраняем всё состояние целиком: задачи, фильтр и текст в поле ввода
 function persist() {
-  TaskStore.save({ version: 1, tasks, filter, draft: input.value });
+  const ok = TaskStore.save({ version: 1, tasks, filter, draft: input.value });
+  if (!ok) showStorageAlert(STORAGE_MESSAGES.saveFailed);
+}
+
+function showStorageAlert(message) {
+  storageAlertText.textContent = message;
+  storageAlert.hidden = false;
+}
+
+// Пробелы по краям убираем, несколько пробелов подряд схлопываем
+function cleanText(text) {
+  return text.trim().replace(/\s+/g, ' ');
+}
+
+// Проверка ввода: возвращает текст ошибки или null, если всё в порядке
+function validateTaskText(text) {
+  if (!text) return 'Введите текст задачи.';
+  if (text.length > MAX_LENGTH) {
+    return `Слишком длинная задача: ${text.length} символов, можно не больше ${MAX_LENGTH}.`;
+  }
+  const same = tasks.find(t => cleanText(t.text).toLowerCase() === text.toLowerCase());
+  if (same) {
+    return same.done
+      ? `Задача «${same.text}» уже есть в списке и отмечена выполненной.`
+      : `Задача «${same.text}» уже есть в списке.`;
+  }
+  return null;
+}
+
+function showInputError(message) {
+  formError.textContent = message;
+  formError.hidden = false;
+  input.setAttribute('aria-invalid', 'true');
+  input.focus();
+}
+
+function clearInputError() {
+  formError.hidden = true;
+  input.removeAttribute('aria-invalid');
 }
 
 function setFilter(name) {
@@ -122,13 +175,14 @@ for (const button of filterButtons) {
 
 form.addEventListener('submit', event => {
   event.preventDefault();
-  const text = input.value.trim();
-  if (!text) {
-    formError.hidden = false;
-    input.focus();
+  const text = cleanText(input.value);
+  const error = validateTaskText(text);
+  if (error) {
+    // Текст остаётся в поле, чтобы его можно было исправить
+    showInputError(error);
     return;
   }
-  formError.hidden = true;
+  clearInputError();
   // Новая задача активная: на фильтре «Выполненные» она бы не появилась,
   // и казалось бы, что добавление не сработало. Поэтому показываем все задачи.
   if (filter === 'done') filter = 'all';
@@ -139,8 +193,12 @@ form.addEventListener('submit', event => {
 
 // Черновик: текст в поле сохраняется сразу, даже если не нажать «Добавить»
 input.addEventListener('input', () => {
-  formError.hidden = true;
+  clearInputError();
   persist();
+});
+
+document.getElementById('storage-alert-close').addEventListener('click', () => {
+  storageAlert.hidden = true;
 });
 
 clearDoneBtn.addEventListener('click', () => {
@@ -152,7 +210,9 @@ clearDoneBtn.addEventListener('click', () => {
 // Изменения, сделанные в другой вкладке, сразу появляются и здесь
 window.addEventListener('storage', event => {
   if (event.key !== TaskStore.KEY) return;
-  applyState(TaskStore.load());
+  const { state, problem } = TaskStore.load();
+  applyState(state);
+  if (problem) showStorageAlert(STORAGE_MESSAGES[problem]);
   render();
 });
 

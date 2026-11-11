@@ -13,12 +13,18 @@
       <p class="app__subtitle">Задачи хранятся в этом браузере (localStorage)</p>
     </header>
 
-    <form id="task-form" class="task-form" autocomplete="off">
+    <div id="storage-alert" class="alert" role="alert" hidden>
+      <p id="storage-alert-text" class="alert__text"></p>
+      <button id="storage-alert-close" class="alert__close" type="button" title="Скрыть">×</button>
+    </div>
+
+    <form id="task-form" class="task-form" autocomplete="off" novalidate>
       <input id="task-input" class="task-form__input" type="text"
-             placeholder="Что нужно сделать?" maxlength="200" aria-label="Новая задача">
+             placeholder="Что нужно сделать?" aria-label="Новая задача"
+             aria-describedby="form-error">
       <button class="task-form__button" type="submit">Добавить</button>
     </form>
-    <p id="form-error" class="task-form__error" role="alert" hidden>Введите текст задачи</p>
+    <p id="form-error" class="task-form__error" role="alert" hidden></p>
 
     <nav class="filters" aria-label="Фильтр задач">
       <button class="filters__button" type="button" data-filter="all">Все</button>
