@@ -10,7 +10,7 @@
   <main class="app">
     <header class="app__header">
       <h1>Мини-задачник</h1>
-      <p class="app__subtitle">Список дел, который хранится прямо в вашем браузере</p>
+      <p class="app__subtitle">Ищите и фильтруйте свои дела — всё хранится прямо в вашем браузере</p>
     </header>
 
     <div id="storage-alert" class="alert" role="alert" hidden>
@@ -32,6 +32,11 @@
       <button class="filters__button" type="button" data-filter="done">Выполненные</button>
     </nav>
 
+    <div class="search">
+      <input id="search-input" class="search__input" type="search"
+             placeholder="Поиск по задачам" aria-label="Поиск по задачам" autocomplete="off">
+    </div>
+
     <ul id="task-list" class="task-list"></ul>
     <p id="empty-state" class="empty-state">Задач пока нет — добавьте первую.</p>
 
@@ -42,6 +47,7 @@
   </main>
 
   <script src="storage.js"></script>
+  <script src="tasks.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
