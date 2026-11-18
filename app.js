@@ -1,20 +1,6 @@
 'use strict';
 
-// Какие задачи показывать при каждом фильтре
-const FILTERS = {
-  all: () => true,
-  active: task => !task.done,
-  done: task => task.done,
-};
-
-// Что писать, когда при выбранном фильтре список пуст
-const EMPTY_TEXT = {
-  all: 'Задач пока нет — добавьте первую.',
-  active: 'Активных задач нет — всё сделано!',
-  done: 'Выполненных задач пока нет.',
-};
-
-const MAX_LENGTH = 200;
+// Интерфейс задачника. Логика списка — в tasks.js, хранение — в storage.js.
 
 // Сообщения о проблемах с хранилищем
 const STORAGE_MESSAGES = {
@@ -50,7 +36,7 @@ if (initial.problem) showStorageAlert(STORAGE_MESSAGES[initial.problem]);
 
 function applyState(state) {
   tasks = state.tasks;
-  filter = Object.hasOwn(FILTERS, state.filter) ? state.filter : 'all';
+  filter = TaskLogic.isFilter(state.filter) ? state.filter : 'all';
 }
 
 // Сохраняем всё состояние целиком: задачи, фильтр и текст в поле ввода
@@ -59,61 +45,15 @@ function persist() {
   if (!ok) showStorageAlert(STORAGE_MESSAGES.saveFailed);
 }
 
+// После любого изменения задач или фильтра: сохранить и перерисовать
+function update() {
+  persist();
+  render();
+}
+
 function showStorageAlert(message) {
   storageAlertText.textContent = message;
   storageAlert.hidden = false;
-}
-
-// Пробелы по краям убираем, несколько пробелов подряд схлопываем
-function cleanText(text) {
-  return text.trim().replace(/\s+/g, ' ');
-}
-
-// Проверка ввода: возвращает текст ошибки или null, если всё в порядке
-function validateTaskText(text) {
-  if (!text) return 'Введите текст задачи.';
-  if (text.length > MAX_LENGTH) {
-    return `Слишком длинная задача: ${text.length} символов, можно не больше ${MAX_LENGTH}.`;
-  }
-  const same = tasks.find(t => cleanText(t.text).toLowerCase() === text.toLowerCase());
-  if (same) {
-    return same.done
-      ? `Задача «${same.text}» уже есть в списке и отмечена выполненной.`
-      : `Задача «${same.text}» уже есть в списке.`;
-  }
-  return null;
-}
-
-// Поиск: без учёта регистра и лишних пробелов
-function normalizedQuery() {
-  return cleanText(query).toLowerCase();
-}
-
-function matchesQuery(task) {
-  const q = normalizedQuery();
-  return !q || cleanText(task.text).toLowerCase().includes(q);
-}
-
-// Выводит текст задачи, подсвечивая найденные фрагменты тегом <mark>.
-// Текст вставляется через текстовые узлы, а не innerHTML — HTML не выполнится.
-function appendHighlighted(container, text) {
-  const q = normalizedQuery();
-  const lower = text.toLowerCase();
-  if (!q || lower.length !== text.length) {
-    container.textContent = text;
-    return;
-  }
-  let from = 0;
-  let index = lower.indexOf(q);
-  while (index !== -1) {
-    container.append(text.slice(from, index));
-    const mark = document.createElement('mark');
-    mark.textContent = text.slice(index, index + q.length);
-    container.append(mark);
-    from = index + q.length;
-    index = lower.indexOf(q, from);
-  }
-  container.append(text.slice(from));
 }
 
 function showInputError(message) {
@@ -128,86 +68,92 @@ function clearInputError() {
   input.removeAttribute('aria-invalid');
 }
 
-function setFilter(name) {
-  filter = name;
-  persist();
-  render();
-}
-
 // Date.now() мог дать одинаковый id при двух добавлениях в одну миллисекунду,
 // поэтому добавлен случайный суффикс
 function makeId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
 
+function setFilter(name) {
+  filter = name;
+  update();
+}
+
 function addTask(text) {
   tasks.push({ id: makeId(), text, done: false, createdAt: Date.now() });
-  persist();
-  render();
+  update();
 }
 
 function toggleTask(id) {
   const task = tasks.find(t => t.id === id);
   if (task) task.done = !task.done;
-  persist();
-  render();
+  update();
 }
 
 function deleteTask(id) {
   tasks = tasks.filter(t => t.id !== id);
-  persist();
-  render();
+  update();
 }
 
-function render() {
-  list.innerHTML = '';
-  const visible = tasks.filter(FILTERS[filter]).filter(matchesQuery);
+function clearDone() {
+  tasks = tasks.filter(t => !t.done);
+  update();
+}
 
-  for (const task of visible) {
-    const li = document.createElement('li');
-    li.className = 'task' + (task.done ? ' task--done' : '');
+// Одна строка списка. Текст вставляется текстовыми узлами, а не innerHTML,
+// поэтому HTML из задачи не выполнится; найденные фрагменты — в <mark>.
+function createTaskElement(task) {
+  const li = document.createElement('li');
+  li.className = 'task' + (task.done ? ' task--done' : '');
 
-    const checkbox = document.createElement('input');
-    checkbox.type = 'checkbox';
-    checkbox.checked = task.done;
-    checkbox.setAttribute('aria-label', 'Отметить выполненной');
-    checkbox.addEventListener('change', () => toggleTask(task.id));
+  const checkbox = document.createElement('input');
+  checkbox.type = 'checkbox';
+  checkbox.checked = task.done;
+  checkbox.setAttribute('aria-label', 'Отметить выполненной');
+  checkbox.addEventListener('change', () => toggleTask(task.id));
 
-    const text = document.createElement('span');
-    text.className = 'task__text';
-    appendHighlighted(text, task.text);
-
-    const del = document.createElement('button');
-    del.className = 'task__delete';
-    del.type = 'button';
-    del.title = 'Удалить';
-    del.textContent = '×';
-    del.addEventListener('click', () => deleteTask(task.id));
-
-    li.append(checkbox, text, del);
-    list.append(li);
+  const text = document.createElement('span');
+  text.className = 'task__text';
+  for (const part of TaskLogic.splitByQuery(task.text, query)) {
+    if (part.match) {
+      const mark = document.createElement('mark');
+      mark.textContent = part.text;
+      text.append(mark);
+    } else {
+      text.append(part.text);
+    }
   }
 
-  const done = tasks.filter(t => t.done).length;
-  counter.textContent = `${done} из ${tasks.length} выполнено`;
-  if (tasks.length === 0) {
-    emptyState.textContent = EMPTY_TEXT.all;
-  } else if (normalizedQuery()) {
-    emptyState.textContent = `Ничего не найдено по запросу «${cleanText(query)}».`;
-  } else {
-    emptyState.textContent = EMPTY_TEXT[filter];
-  }
-  emptyState.hidden = visible.length > 0;
-  clearDoneBtn.disabled = done === 0;
+  const del = document.createElement('button');
+  del.className = 'task__delete';
+  del.type = 'button';
+  del.title = 'Удалить';
+  del.textContent = '×';
+  del.addEventListener('click', () => deleteTask(task.id));
 
-  const counts = { all: tasks.length, active: tasks.length - done, done };
-  const labels = { all: 'Все', active: 'Активные', done: 'Выполненные' };
+  li.append(checkbox, text, del);
+  return li;
+}
+
+function renderFilters(counts) {
   for (const button of filterButtons) {
     const name = button.dataset.filter;
-    button.textContent = `${labels[name]} (${counts[name]})`;
+    button.textContent = `${TaskLogic.FILTER_LABELS[name]} (${counts[name]})`;
     button.classList.toggle('filters__button--active', name === filter);
     button.setAttribute('aria-pressed', name === filter);
   }
+}
+
+function render() {
+  const visible = TaskLogic.visibleTasks(tasks, filter, query);
+  list.replaceChildren(...visible.map(createTaskElement));
+
+  const counts = TaskLogic.countTasks(tasks);
+  counter.textContent = `${counts.done} из ${counts.all} выполнено`;
+  emptyState.textContent = TaskLogic.emptyText(tasks, filter, query);
+  emptyState.hidden = visible.length > 0;
+  clearDoneBtn.disabled = counts.done === 0;
+  renderFilters(counts);
 }
 
 for (const button of filterButtons) {
@@ -216,8 +162,8 @@ for (const button of filterButtons) {
 
 form.addEventListener('submit', event => {
   event.preventDefault();
-  const text = cleanText(input.value);
-  const error = validateTaskText(text);
+  const text = TaskLogic.cleanText(input.value);
+  const error = TaskLogic.validateTaskText(text, tasks);
   if (error) {
     // Текст остаётся в поле, чтобы его можно было исправить
     showInputError(error);
@@ -228,7 +174,7 @@ form.addEventListener('submit', event => {
   // и казалось бы, что добавление не сработало. Поэтому показываем все задачи.
   if (filter === 'done') filter = 'all';
   // То же с поиском: если новая задача не подходит под запрос, сбрасываем поиск
-  if (!matchesQuery({ text })) {
+  if (!TaskLogic.matchesQuery({ text }, query)) {
     query = '';
     searchInput.value = '';
   }
@@ -252,11 +198,7 @@ document.getElementById('storage-alert-close').addEventListener('click', () => {
   storageAlert.hidden = true;
 });
 
-clearDoneBtn.addEventListener('click', () => {
-  tasks = tasks.filter(t => !t.done);
-  persist();
-  render();
-});
+clearDoneBtn.addEventListener('click', clearDone);
 
 // Изменения, сделанные в другой вкладке, сразу появляются и здесь
 window.addEventListener('storage', event => {
