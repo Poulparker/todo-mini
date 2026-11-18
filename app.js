@@ -36,10 +36,13 @@ const emptyState = document.getElementById('empty-state');
 const counter = document.getElementById('counter');
 const clearDoneBtn = document.getElementById('clear-done');
 const filterButtons = document.querySelectorAll('[data-filter]');
+const searchInput = document.getElementById('search-input');
 
 // Состояние восстанавливается из localStorage (см. storage.js)
 let tasks = [];
 let filter = 'all';
+// Поисковый запрос не сохраняется: после перезапуска показываются все задачи
+let query = '';
 const initial = TaskStore.load();
 applyState(initial.state);
 input.value = initial.state.draft;
@@ -79,6 +82,38 @@ function validateTaskText(text) {
       : `Задача «${same.text}» уже есть в списке.`;
   }
   return null;
+}
+
+// Поиск: без учёта регистра и лишних пробелов
+function normalizedQuery() {
+  return cleanText(query).toLowerCase();
+}
+
+function matchesQuery(task) {
+  const q = normalizedQuery();
+  return !q || cleanText(task.text).toLowerCase().includes(q);
+}
+
+// Выводит текст задачи, подсвечивая найденные фрагменты тегом <mark>.
+// Текст вставляется через текстовые узлы, а не innerHTML — HTML не выполнится.
+function appendHighlighted(container, text) {
+  const q = normalizedQuery();
+  const lower = text.toLowerCase();
+  if (!q || lower.length !== text.length) {
+    container.textContent = text;
+    return;
+  }
+  let from = 0;
+  let index = lower.indexOf(q);
+  while (index !== -1) {
+    container.append(text.slice(from, index));
+    const mark = document.createElement('mark');
+    mark.textContent = text.slice(index, index + q.length);
+    container.append(mark);
+    from = index + q.length;
+    index = lower.indexOf(q, from);
+  }
+  container.append(text.slice(from));
 }
 
 function showInputError(message) {
@@ -126,7 +161,7 @@ function deleteTask(id) {
 
 function render() {
   list.innerHTML = '';
-  const visible = tasks.filter(FILTERS[filter]);
+  const visible = tasks.filter(FILTERS[filter]).filter(matchesQuery);
 
   for (const task of visible) {
     const li = document.createElement('li');
@@ -140,7 +175,7 @@ function render() {
 
     const text = document.createElement('span');
     text.className = 'task__text';
-    text.textContent = task.text; // textContent, а не innerHTML — защита от HTML-вставок
+    appendHighlighted(text, task.text);
 
     const del = document.createElement('button');
     del.className = 'task__delete';
@@ -155,7 +190,13 @@ function render() {
 
   const done = tasks.filter(t => t.done).length;
   counter.textContent = `${done} из ${tasks.length} выполнено`;
-  emptyState.textContent = tasks.length === 0 ? EMPTY_TEXT.all : EMPTY_TEXT[filter];
+  if (tasks.length === 0) {
+    emptyState.textContent = EMPTY_TEXT.all;
+  } else if (normalizedQuery()) {
+    emptyState.textContent = `Ничего не найдено по запросу «${cleanText(query)}».`;
+  } else {
+    emptyState.textContent = EMPTY_TEXT[filter];
+  }
   emptyState.hidden = visible.length > 0;
   clearDoneBtn.disabled = done === 0;
 
@@ -186,6 +227,11 @@ form.addEventListener('submit', event => {
   // Новая задача активная: на фильтре «Выполненные» она бы не появилась,
   // и казалось бы, что добавление не сработало. Поэтому показываем все задачи.
   if (filter === 'done') filter = 'all';
+  // То же с поиском: если новая задача не подходит под запрос, сбрасываем поиск
+  if (!matchesQuery({ text })) {
+    query = '';
+    searchInput.value = '';
+  }
   input.value = '';
   addTask(text);
   input.focus();
@@ -195,6 +241,11 @@ form.addEventListener('submit', event => {
 input.addEventListener('input', () => {
   clearInputError();
   persist();
+});
+
+searchInput.addEventListener('input', () => {
+  query = searchInput.value;
+  render();
 });
 
 document.getElementById('storage-alert-close').addEventListener('click', () => {
