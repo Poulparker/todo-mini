@@ -1,0 +1,9 @@
+{
+  "name": "todo-mini",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Мини-задачник: HTML, CSS, JavaScript, localStorage",
+  "scripts": {
+    "test": "node --test"
+  }
+}

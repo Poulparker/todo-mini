@@ -104,3 +104,6 @@ const TaskLogic = (() => {
     splitByQuery,
   };
 })();
+
+// Для автотестов в Node.js: там есть module, в браузере его нет — строка ничего не делает
+if (typeof module !== 'undefined') module.exports = TaskLogic;
