@@ -27,9 +27,15 @@ const TaskLogic = (() => {
     return text.trim().replace(/\s+/g, ' ');
   }
 
-  // Для сравнения: без лишних пробелов и без учёта регистра
+  // Сопоставляем «ё» с «е» и игнорируем регистр, сохраняя пробелы
+  // для подсветки по позициям в исходном тексте.
+  function foldLetters(text) {
+    return text.toLowerCase().replace(/ё/g, 'е');
+  }
+
+  // Для сравнения также убираем лишние пробелы.
   function normalize(text) {
-    return cleanText(text).toLowerCase();
+    return foldLetters(cleanText(text));
   }
 
   function isFilter(name) {
@@ -76,17 +82,17 @@ const TaskLogic = (() => {
   // Делит текст на куски для подсветки: [{ text, match }]
   function splitByQuery(text, query) {
     const q = normalize(query);
-    const lower = text.toLowerCase();
-    if (!q || lower.length !== text.length) return [{ text, match: false }];
+    const folded = foldLetters(text);
+    if (!q || folded.length !== text.length) return [{ text, match: false }];
 
     const parts = [];
     let from = 0;
-    let index = lower.indexOf(q);
+    let index = folded.indexOf(q);
     while (index !== -1) {
       if (index > from) parts.push({ text: text.slice(from, index), match: false });
       parts.push({ text: text.slice(index, index + q.length), match: true });
       from = index + q.length;
-      index = lower.indexOf(q, from);
+      index = folded.indexOf(q, from);
     }
     if (from < text.length) parts.push({ text: text.slice(from), match: false });
     return parts;
@@ -104,3 +110,6 @@ const TaskLogic = (() => {
     splitByQuery,
   };
 })();
+
+// Для автотестов в Node.js: там есть module, в браузере его нет — строка ничего не делает
+if (typeof module !== 'undefined') module.exports = TaskLogic;
